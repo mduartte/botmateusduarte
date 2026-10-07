@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robô de Candidaturas</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5; --border: #e2e5ea;
+    --text: #1b1f24; --muted: #646d78; --accent: #0a66c2; --accent-ink: #ffffff; --accent-soft: #e8f1fb;
+    --ok: #1f8a4c; --warn: #b26a00; --err: #c0392b;
+    --log-bg: #11151a; --log-text: #d7dde4;
+    --radius: 10px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --surface: #171b21; --surface-2: #1e232b; --border: #2a313b;
+      --text: #e6e9ee; --muted: #9aa4b1; --accent: #4c9be8; --accent-ink: #0b1220; --accent-soft: #16263a;
+      --ok: #3cc47c; --warn: #e3a33b; --err: #ef6b5b; --log-bg: #0a0d11; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+  .bar { max-width: 1040px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-weight: 650; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .brand .logo { width: 26px; height: 26px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; color: var(--muted); padding: 7px 12px; border-radius: 8px; cursor: pointer; font: inherit; }
+  nav button.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
+  nav .badge { background: var(--warn); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; margin-left: 4px; }
+  .pill { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .dot.off { background: var(--err); }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 90px; }
+  section[hidden] { display: none; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card p.hint { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stat .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .l { color: var(--muted); font-size: 12.5px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button.btn, a.btn { font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 550; text-decoration: none; display: inline-block; }
+  button.btn:hover:not(:disabled), a.btn:hover { background: var(--surface-2); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+  button.btn.danger { color: var(--err); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  button.icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; }
+  button.icon:hover { background: var(--surface-2); color: var(--err); }
+  .log { background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 12px; height: 340px; overflow: auto; font: 12.5px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .log .ok { color: #5fd38d; } .log .skip { color: #e8b75a; } .log .err { color: #ff8a7a; } .log .job { color: #8cc4ff; font-weight: 600; }
+  .log:empty::before { content: "Nenhuma execução ainda."; color: #6b7480; }
+  label.f { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; font-weight: 550; }
+  input[type=text], input[type=email], input[type=tel], input[type=url], input[type=number], select, textarea {
+    width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+  input.filled { background: var(--accent-soft); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .row.rule { grid-template-columns: 1.4fr 1fr auto; }
+  .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .toggle:first-of-type { border-top: 0; }
+  .toggle small { display: block; color: var(--muted); }
+  .switch { position: relative; width: 38px; height: 22px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: var(--border); border-radius: 99px; cursor: pointer; transition: .15s; }
+  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .15s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(16px); }
+  /* fonte de dados */
+  .choices { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .choice { border: 1.5px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
+  .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .choice input { margin-top: 3px; accent-color: var(--accent); }
+  .choice b { display: block; margin-bottom: 2px; }
+  .choice small { color: var(--muted); }
+  /* currículo */
+  .drop { border: 2px dashed var(--border); border-radius: 10px; padding: 26px 16px; text-align: center; color: var(--muted); cursor: pointer; transition: .15s; }
+  .drop.over, .drop:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .drop b { color: var(--accent); }
+  .file { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 12px; flex-wrap: wrap; }
+  .file .ic { width: 38px; height: 46px; border-radius: 6px; background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; }
+  .file .nm { flex: 1; min-width: 160px; font-weight: 600; word-break: break-all; }
+  .file .nm small { display: block; color: var(--muted); font-weight: 400; }
+  .conn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .conn .st { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .checklist { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; }
+  .checklist li { display: flex; gap: 8px; align-items: center; }
+  .checklist .m { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; flex: none; color: #fff; background: var(--muted); }
+  .checklist .done .m { background: var(--ok); }
+  .checklist .todo .m { background: var(--warn); }
+  .checklist a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .savebar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px; display: none; z-index: 6; }
+  .savebar.show { display: block; }
+  .savebar .bar { padding: 0; justify-content: flex-end; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  td a { color: var(--accent); text-decoration: none; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .tag.enviada { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .tag.pulada { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  .tag.other { background: var(--surface-2); color: var(--muted); }
+  .muted { color: var(--muted); }
+  .empty { text-align: center; color: var(--muted); padding: 24px 0; }
+  .q { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .q .t { font-weight: 600; margin-bottom: 8px; }
+  .q .t .muted { font-weight: 400; font-size: 12px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filters input { max-width: 280px; } .filters select { max-width: 180px; }
+  dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); padding: 20px; max-width: 440px; width: calc(100% - 32px); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h3 { margin: 0 0 6px; }
+  .toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 8px; opacity: 0; transition: .2s; pointer-events: none; z-index: 10; max-width: calc(100% - 32px); text-align: center; }
+  .toast.show { opacity: 1; }
+  .note { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+  @media (max-width: 640px) { .row, .row.rule { grid-template-columns: 1fr auto; } .row > :nth-child(2) { grid-column: 1; } .pill { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand"><span class="logo">in</span>Robô de Candidaturas</div>
+    <nav>
+      <button data-tab="painel" class="active">Painel</button>
+      <button data-tab="perfil">Meu perfil</button>
+      <button data-tab="vagas">Vagas</button>
+      <button data-tab="respostas">Respostas<span class="badge" id="qBadge" hidden></span></button>
+      <button data-tab="historico">Histórico</button>
+    </nav>
+    <span class="pill"><span class="dot" id="dot"></span><span id="statusText">Parado</span></span>
+  </div>
+</header>
+
+<main>
+  <!-- ============ PAINEL ============ -->
+  <section id="painel">
+    <div class="stats">
+      <div class="stat"><div class="v" id="sHoje">0</div><div class="l">Enviadas hoje</div></div>
+      <div class="stat"><div class="v" id="sTotal">0</div><div class="l">Enviadas no total</div></div>
+      <div class="stat"><div class="v" id="sPuladas">0</div><div class="l">Puladas</div></div>
+      <div class="stat"><div class="v" id="sPend">0</div><div class="l">Perguntas pendentes</div></div>
+    </div>
+    <div class="card">
+      <h2>Execução</h2>
+      <p class="hint">Teste em modo simulação (nada é enviado) antes de iniciar os envios reais.</p>
+      <ul class="checklist" id="checklist"></ul>
+      <div class="actions">
+        <button class="btn" data-start="dry">Testar (simulação)</button>
+        <button class="btn primary" data-start="real">Iniciar envios</button>
+        <button class="btn danger" id="stopBtn" disabled>Parar</button>
+      </div>
+    </div>
+    <div class="card"><h2 style="margin-bottom:10px">Log ao vivo</h2><div class="log" id="log"></div></div>
+  </section>
+
+  <!-- ============ MEU PERFIL ============ -->
+  <section id="perfil" hidden>
+    <div class="card">
+      <h2>Conta do LinkedIn</h2>
+      <p class="hint">O robô se candidata usando a sua conta. O login é feito por você numa janela do Chrome; sua senha não é salva por aqui.</p>
+      <div class="conn">
+        <span class="st"><span class="dot" id="liDot"></span><span id="liText">Verificando…</span></span>
+        <span style="flex:1"></span>
+        <button class="btn primary" id="liLogin">Conectar ao LinkedIn</button>
+        <button class="btn danger" id="liLogout" hidden>Desconectar</button>
+      </div>
+      <div class="note" id="liWaiting" hidden>Uma janela do Chrome foi aberta. Faça login nela (inclusive verificação em duas etapas). Ela fecha sozinha quando terminar.</div>
+    </div>
+
+    <div class="card">
+      <h2>Quais dados enviar nas vagas?</h2>
+      <p class="hint">Escolha de onde vêm o currículo e as informações de contato usados nas candidaturas.</p>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="source" value="local">
+          <span><b>Meu currículo e informações daqui</b><small>Envia o PDF abaixo e usa seus dados desta página, substituindo telefone, e-mail e cidade que o LinkedIn pré-preenche.</small></span></label>
+        <label class="choice"><input type="radio" name="source" value="linkedin">
+          <span><b>O que já está salvo no LinkedIn</b><small>Usa o currículo e os contatos salvos na sua conta. Os dados desta página só preenchem campos que o LinkedIn deixar em branco.</small></span></label>
+      </div>
+    </div>
+
+    <div class="card" id="resumeCard">
+      <h2>Currículo</h2>
+      <p class="hint" id="resumeHint">PDF de até 2 MB, como o LinkedIn aceita. Ao enviar, tentamos preencher suas informações a partir dele.</p>
+      <input type="file" id="resumeFile" accept="application/pdf" hidden>
+      <div class="drop" id="drop"><b>Clique para escolher</b> ou arraste seu currículo em PDF aqui</div>
+      <div class="file" id="fileBox" hidden>
+        <span class="ic">PDF</span>
+        <span class="nm"><span id="fileName"></span><small>Será usado nas candidaturas</small></span>
+        <a class="btn" href="/api/resume/file" target="_blank" rel="noopener">Visualizar</a>
+        <button class="btn" id="resumeSwap">Trocar</button>
+        <button class="btn danger" id="resumeDel">Remover</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Informações pessoais</h2>
+      <p class="hint">Usadas para preencher os formulários das vagas.</p>
+      <div class="grid">
+        <div><label class="f" for="p_full_name">Nome completo</label><input type="text" id="p_full_name" autocomplete="name"></div>
+        <div><label class="f" for="p_email">E-mail</label><input type="email" id="p_email" autocomplete="email"></div>
+        <div><label class="f" for="p_phone">Telefone (com DDD)</label><input type="tel" id="p_phone" autocomplete="tel" placeholder="11999999999"></div>
+        <div><label class="f" for="p_city">Cidade</label><input type="text" id="p_city" placeholder="São Paulo, São Paulo, Brasil"></div>
+        <div><label class="f" for="p_linkedin_url">URL do perfil no LinkedIn</label><input type="url" id="p_linkedin_url" placeholder="https://www.linkedin.com/in/…"></div>
+        <div><label class="f" for="p_portfolio_url">Portfólio / GitHub</label><input type="url" id="p_portfolio_url"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Informações profissionais</h2>
+      <p class="hint">Respostas para perguntas comuns das vagas.</p>
+      <div class="grid">
+        <div><label class="f" for="p_years_experience">Anos de experiência</label><input type="number" id="p_years_experience" min="0" max="60"></div>
+        <div><label class="f" for="p_salary">Pretensão salarial (R$/mês)</label><input type="text" id="p_salary" inputmode="numeric"></div>
+        <div><label class="f" for="p_english_level">Nível de inglês</label>
+          <select id="p_english_level"><option value="">—</option><option>Básico</option><option>Intermediário</option><option>Avançado</option><option>Fluente</option><option>Nativo</option></select></div>
+        <div><label class="f" for="p_availability">Disponibilidade para início</label><input type="text" id="p_availability" placeholder="Imediata"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VAGAS ============ -->
+  <section id="vagas" hidden>
+    <div class="card">
+      <h2>Buscas</h2>
+      <p class="hint">Cargo e local de cada busca. Apenas vagas com “Candidatura simplificada”.</p>
+      <div id="searches"></div>
+      <button class="btn" id="addSearch">+ Adicionar busca</button>
+    </div>
+    <div class="card">
+      <h2>Filtros</h2>
+      <div class="grid">
+        <div><label class="f">Publicadas em</label>
+          <select id="posted"><option value="0">Qualquer data</option><option value="24">Últimas 24 horas</option>
+            <option value="72">Últimos 3 dias</option><option value="168">Última semana</option><option value="720">Último mês</option></select></div>
+        <div><label class="f">Páginas por busca (~25 vagas cada)</label><input type="number" id="pages" min="1" max="40"></div>
+      </div>
+      <div style="margin-top:12px"><label class="f">Modalidade (nenhuma marcada = qualquer)</label><div class="checks" id="remote"></div></div>
+      <div style="margin-top:12px"><label class="f">Nível de experiência (nenhum marcado = qualquer)</label><div class="checks" id="levels"></div></div>
+      <div class="grid" style="margin-top:12px">
+        <div><label class="f">Pular títulos com (separe por vírgula)</label><input type="text" id="blTitle" placeholder="estágio, sênior"></div>
+        <div><label class="f">Pular empresas (separe por vírgula)</label><input type="text" id="blCompany"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Limites e segurança</h2>
+      <div class="grid" style="margin-bottom:8px">
+        <div><label class="f">Máximo de envios por execução</label><input type="number" id="maxApps" min="1"></div>
+        <div><label class="f">Espera mínima entre envios (s)</label><input type="number" id="delayMin" min="0"></div>
+        <div><label class="f">Espera máxima entre envios (s)</label><input type="number" id="delayMax" min="0"></div>
+      </div>
+      <div class="toggle"><div>Confirmar cada envio<small>Mostra um diálogo aqui antes de enviar cada candidatura.</small></div>
+        <label class="switch"><input type="checkbox" id="confirm"><span></span></label></div>
+      <div class="toggle"><div>Deixar de seguir a empresa<small>Desmarca “Seguir empresa” no final do formulário.</small></div>
+        <label class="switch"><input type="checkbox" id="unfollow"><span></span></label></div>
+    </div>
+  </section>
+
+  <!-- ============ RESPOSTAS ============ -->
+  <section id="respostas" hidden>
+    <div class="card">
+      <h2>Perguntas pendentes</h2>
+      <p class="hint">Perguntas obrigatórias que o robô não soube responder — essas vagas foram puladas. Ajuste a palavra-chave (algo curto que identifique a pergunta), informe a resposta e salve.</p>
+      <div id="qList"></div>
+    </div>
+    <div class="card">
+      <h2>Respostas automáticas</h2>
+      <p class="hint">Se a pergunta contiver alguma das palavras-chave, usa a resposta. A primeira regra que casar vence e tem prioridade sobre o Meu perfil.</p>
+      <div class="grid" style="margin-bottom:14px">
+        <div><label class="f">Perguntas Sim/Não sem regra</label>
+          <select id="defYesNo"><option value="">Não chutar (pular vaga)</option><option>Sim</option><option>Não</option></select></div>
+      </div>
+      <div class="row rule" style="margin-bottom:4px"><label class="f">Palavras-chave (vírgula)</label><label class="f">Resposta</label><span></span></div>
+      <div id="rules"></div>
+      <button class="btn" id="addRule">+ Adicionar regra</button>
+    </div>
+  </section>
+
+  <!-- ============ HISTÓRICO ============ -->
+  <section id="historico" hidden>
+    <div class="card">
+      <div class="filters">
+        <input type="text" id="hSearch" placeholder="Buscar vaga ou empresa…">
+        <select id="hStatus"><option value="">Todos os status</option><option value="enviada">Enviadas</option>
+          <option value="pulada">Puladas</option><option value="simulada">Simuladas</option><option value="cancelada">Canceladas</option></select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Data</th><th>Vaga</th><th>Empresa</th><th>Status</th><th>Detalhe</th></tr></thead>
+        <tbody id="hBody"></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+
+<div class="savebar" id="savebar"><div class="bar">
+  <span class="muted">Alterações não salvas</span>
+  <button class="btn" id="discardBtn">Descartar</button>
+  <button class="btn primary" id="saveBtn">Salvar</button>
+</div></div>
+
+<dialog id="confirmDlg">
+  <h3>Enviar candidatura?</h3>
+  <p class="muted" id="confirmJob"></p>
+  <div class="actions" style="justify-content:flex-end">
+    <button class="btn danger" data-ans="q">Parar tudo</button>
+    <button class="btn" data-ans="n">Pular</button>
+    <button class="btn primary" data-ans="s">Enviar</button>
+  </div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const api = (url, opts = {}) => fetch(url, { headers: { "Content-Type": "application/json" }, ...opts })
+  .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; });
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function toast(msg, ms = 2600) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms); }
+
+/* ---------- abas ---------- */
+function showTab(tab) {
+  $$("nav button").forEach(x => x.classList.toggle("active", x.dataset.tab === tab));
+  $$("main section").forEach(s => s.hidden = s.id !== tab);
+  if (tab === "historico") loadApplied();
+  if (tab === "respostas") loadQuestions();
+}
+$$("nav button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ---------- configuração (perfil, vagas, respostas) ---------- */
+const PROFILE_KEYS = ["full_name", "email", "phone", "city", "linkedin_url", "portfolio_url", "years_experience", "salary", "english_level", "availability"];
+const REMOTE = { presencial: "Presencial", remoto: "Remoto", hibrido: "Híbrido" };
+const LEVELS = { estagio: "Estágio", junior: "Júnior", assistente: "Assistente", pleno_senior: "Pleno/Sênior", diretor: "Diretor", executivo: "Executivo" };
+let cfg = {};
+
+function checks(el, map, selected) {
+  el.innerHTML = Object.entries(map).map(([k, v]) => `<label><input type="checkbox" value="${k}" ${selected.includes(k) ? "checked" : ""}> ${v}</label>`).join("");
+}
+function addRow(container, cls, a, b, phA, phB) {
+  const d = document.createElement("div"); d.className = cls;
+  d.innerHTML = `<input type="text" placeholder="${phA}" value="${esc(a)}"><input type="text" placeholder="${phB}" value="${esc(b)}"><button class="icon" title="Remover">✕</button>`;
+  d.querySelector("button").onclick = () => { d.remove(); dirty(); };
+  container.append(d);
+}
+const searchRow = (s = {}) => addRow($("#searches"), "row", s.keywords, s.location, "Cargo / palavras-chave", "Local");
+const ruleRow = (r = { match: [], answer: "" }) => addRow($("#rules"), "row rule", r.match.join(", "), r.answer, "ex.: python, java", "Resposta");
+
+function renderConfig() {
+  const f = cfg.filters || {}, p = cfg.profile || cfg.personal || {};
+  PROFILE_KEYS.forEach(k => { const el = $("#p_" + k); el.value = p[k] ?? ""; el.classList.remove("filled"); });
+  $$("input[name=source]").forEach(r => r.checked = r.value === (cfg.data_source || "local"));
+  renderResume();
+  $("#searches").innerHTML = ""; (cfg.searches || []).forEach(searchRow);
+  $("#posted").value = String(f.posted_within_hours || 0);
+  if (![...$("#posted").options].some(o => o.value === $("#posted").value)) $("#posted").add(new Option(`${f.posted_within_hours} horas`, f.posted_within_hours, true, true));
+  $("#pages").value = f.pages_per_search ?? 1;
+  checks($("#remote"), REMOTE, f.remote || []);
+  checks($("#levels"), LEVELS, f.experience_levels || []);
+  $("#blTitle").value = (cfg.blacklist_title_words || []).join(", ");
+  $("#blCompany").value = (cfg.blacklist_companies || []).join(", ");
+  $("#maxApps").value = cfg.max_applications_per_run ?? 20;
+  const [dmin, dmax] = cfg.delay_between_applications_seconds || [10, 25];
+  $("#delayMin").value = dmin; $("#delayMax").value = dmax;
+  $("#confirm").checked = cfg.confirm_before_submit ?? true;
+  $("#unfollow").checked = cfg.unfollow_company ?? true;
+  $("#defYesNo").value = cfg.default_yes_no ?? "";
+  $("#rules").innerHTML = ""; (cfg.answers || []).forEach(ruleRow);
+  $("#savebar").classList.remove("show");
+  renderChecklist();
+}
+const list = s => s.split(",").map(x => x.trim()).filter(Boolean);
+function collectConfig() {
+  const checked = el => [...el.querySelectorAll("input:checked")].map(i => i.value);
+  const profile = {};
+  PROFILE_KEYS.forEach(k => { const v = $("#p_" + k).value.trim(); profile[k] = k === "years_experience" ? (v === "" ? null : +v) : v; });
+  const out = {
+    ...cfg,
+    data_source: $("input[name=source]:checked")?.value || "local",
+    profile,
+    searches: [...$("#searches").children].map(r => { const [k, l] = r.querySelectorAll("input"); return { keywords: k.value.trim(), location: l.value.trim() }; }).filter(s => s.keywords),
+    filters: { posted_within_hours: +$("#posted").value, remote: checked($("#remote")), experience_levels: checked($("#levels")), pages_per_search: +$("#pages").value || 1 },
+    blacklist_title_words: list($("#blTitle").value),
+    blacklist_companies: list($("#blCompany").value),
+    max_applications_per_run: +$("#maxApps").value || 1,
+    delay_between_applications_seconds: [+$("#delayMin").value || 0, Math.max(+$("#delayMax").value || 0, +$("#delayMin").value || 0)],
+    confirm_before_submit: $("#confirm").checked,
+    unfollow_company: $("#unfollow").checked,
+    default_yes_no: $("#defYesNo").value || null,
+    answers: [...$("#rules").children].map(r => { const [m, a] = r.querySelectorAll("input"); return { match: list(m.value.toLowerCase()), answer: a.value.trim() }; }).filter(r => r.match.length && r.answer),
+  };
+  delete out.personal; delete out.default_years_experience;
+  return out;
+}
+function dirty() { $("#savebar").classList.add("show"); }
+["perfil", "vagas", "respostas"].forEach(id => { $("#" + id).addEventListener("input", dirty); $("#" + id).addEventListener("change", e => { if (e.target.type !== "file") dirty(); }); });
+$$("input[name=source]").forEach(r => r.addEventListener("change", renderResume));
+$("#addSearch").onclick = () => { searchRow(); dirty(); };
+$("#addRule").onclick = () => { ruleRow(); dirty(); };
+$("#discardBtn").onclick = renderConfig;
+async function saveConfig(msg = "Salvo") {
+  cfg = collectConfig();
+  await api("/api/config", { method: "PUT", body: JSON.stringify(cfg) });
+  renderConfig(); toast(msg); loadQuestions();
+}
+$("#saveBtn").onclick = () => saveConfig();
+window.addEventListener("beforeunload", e => { if ($("#savebar").classList.contains("show")) e.preventDefault(); });
+async function loadConfig() { cfg = await api("/api/config"); renderConfig(); }
+
+/* ---------- currículo ---------- */
+function renderResume() {
+  const path = cfg.resume_path || "", has = !!path;
+  const local = ($("input[name=source]:checked")?.value || "local") === "local";
+  $("#fileName").textContent = path.split("/").pop();
+  $("#fileBox").hidden = !has; $("#drop").hidden = has;
+  $("#resumeHint").textContent = local
+    ? "PDF de até 2 MB, como o LinkedIn aceita. Ao enviar, tentamos preencher suas informações a partir dele."
+    : "Opcional nesta opção: o robô usará o currículo salvo no LinkedIn. Você ainda pode enviar um PDF para preencher suas informações automaticamente.";
+  renderChecklist();
+}
+async function uploadResume(file) {
+  if (!file) return;
+  if (!/\.pdf$/i.test(file.name)) return toast("Envie um arquivo PDF.");
+  if (file.size > 2 * 1024 * 1024) toast("Atenção: o LinkedIn aceita currículos de até 2 MB.", 4000);
+  const fd = new FormData(); fd.append("file", file);
+  const r = await fetch("/api/resume", { method: "POST", body: fd }).then(r => r.json());
+  if (r.error) return toast(r.error);
+  cfg.resume_path = r.path; renderResume();
+  // Preenche só os campos vazios com o que foi lido do PDF
+  const filled = Object.entries(r.extracted || {}).filter(([k, v]) => { const el = $("#p_" + k); if (el && !el.value.trim() && v) { el.value = v; el.classList.add("filled"); return true; } });
+  if (filled.length) { dirty(); toast(`Currículo enviado. Preenchemos ${filled.length} campo(s) a partir dele — confira e salve.`, 4500); }
+  else toast("Currículo enviado.");
+}
+$("#drop").onclick = $("#resumeSwap").onclick = () => $("#resumeFile").click();
+$("#resumeFile").onchange = e => { uploadResume(e.target.files[0]); e.target.value = ""; };
+["dragover", "dragenter"].forEach(ev => $("#drop").addEventListener(ev, e => { e.preventDefault(); $("#drop").classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => $("#drop").addEventListener(ev, e => { e.preventDefault(); $("#drop").classList.remove("over"); }));
+$("#drop").addEventListener("drop", e => uploadResume(e.dataTransfer.files[0]));
+$("#resumeDel").onclick = async () => {
+  if (!confirm("Remover o currículo?")) return;
+  await api("/api/resume", { method: "DELETE" }); cfg.resume_path = ""; renderResume(); toast("Currículo removido");
+};
+
+/* ---------- conta LinkedIn ---------- */
+let loggedIn = false, running = false, mode = "";
+async function loadLinkedin() {
+  try { loggedIn = (await api("/api/linkedin/status")).logged_in; } catch { return; }
+  $("#liDot").className = "dot " + (loggedIn ? "on" : "off");
+  $("#liText").textContent = loggedIn ? "Conectado" : "Não conectado";
+  $("#liLogin").textContent = loggedIn ? "Reconectar" : "Conectar ao LinkedIn";
+  $("#liLogin").className = "btn" + (loggedIn ? "" : " primary");
+  $("#liLogout").hidden = !loggedIn;
+  renderChecklist();
+}
+$("#liLogin").onclick = () => start("login");
+$("#liLogout").onclick = async () => {
+  if (!confirm("Desconectar a conta do LinkedIn deste robô?")) return;
+  try { await api("/api/linkedin/logout", { method: "POST" }); toast("Conta desconectada"); loadLinkedin(); } catch (e) { toast(e.message); }
+};
+
+/* ---------- checklist do painel ---------- */
+function renderChecklist() {
+  const local = (cfg.data_source || "local") === "local";
+  const items = [
+    [loggedIn, "Conta do LinkedIn conectada", "perfil"],
+    local ? [!!cfg.resume_path, "Currículo enviado", "perfil"] : [true, "Usando currículo e dados salvos no LinkedIn", "perfil"],
+    [!!(cfg.profile || {}).phone || !local, "Telefone informado", "perfil"],
+    [(cfg.searches || []).length > 0, "Ao menos uma busca cadastrada", "vagas"],
+  ];
+  $("#checklist").innerHTML = items.map(([ok, txt, tab]) =>
+    `<li class="${ok ? "done" : "todo"}"><span class="m">${ok ? "✓" : "!"}</span>${esc(txt)}${ok ? "" : ` — <a data-go="${tab}">resolver</a>`}</li>`).join("");
+  $$("#checklist [data-go]").forEach(a => a.onclick = () => showTab(a.dataset.go));
+}
+
+/* ---------- execução / log ---------- */
+let logTotal = 0, wasRunning = false;
+function logClass(l) {
+  if (/-> enviada|Login detectado|Login salvo|Sessão do LinkedIn ativa/.test(l)) return "ok";
+  if (/-> (pulada|simulada|cancelada)|Pulada|Aviso/.test(l)) return "skip";
+  if (/Erro|Traceback|Error/.test(l)) return "err";
+  if (/Vaga:|Busca:/.test(l)) return "job";
+  return "";
+}
+async function start(m) {
+  if ($("#savebar").classList.contains("show")) await saveConfig("Alterações salvas");
+  if (m === "real" && !confirm("Iniciar envios REAIS de candidaturas?")) return;
+  try { await api("/api/start", { method: "POST", body: JSON.stringify({ mode: m }) }); $("#log").innerHTML = ""; logTotal = 0; poll(); }
+  catch (e) { toast(e.message, 4000); }
+}
+$$("[data-start]").forEach(b => b.onclick = () => start(b.dataset.start));
+$("#stopBtn").onclick = () => api("/api/stop", { method: "POST" });
+$$("#confirmDlg [data-ans]").forEach(b => b.onclick = async () => {
+  $("#confirmDlg").close(); await api("/api/confirm", { method: "POST", body: JSON.stringify({ answer: b.dataset.ans }) });
+});
+async function poll() {
+  try {
+    const s = await api(`/api/status?since=${logTotal}`);
+    if (s.total < logTotal) { $("#log").innerHTML = ""; logTotal = 0; }
+    const box = $("#log"), atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    for (const l of s.lines) { const d = document.createElement("div"); d.className = logClass(l); d.textContent = l; box.append(d); }
+    logTotal = s.total;
+    if (atBottom) box.scrollTop = box.scrollHeight;
+    running = s.running; mode = s.mode;
+    const labels = { login: "Aguardando login", dry: "Simulando", real: "Enviando candidaturas" };
+    $("#dot").classList.toggle("on", running);
+    $("#statusText").textContent = running ? labels[mode] : "Parado";
+    $$("[data-start], #liLogin, #liLogout").forEach(b => b.disabled = running);
+    $("#stopBtn").disabled = !running;
+    $("#liWaiting").hidden = !(running && mode === "login");
+    const dlg = $("#confirmDlg");
+    if (s.confirm && !dlg.open) { $("#confirmJob").textContent = s.confirm.job; dlg.showModal(); }
+    if (!s.confirm && dlg.open) dlg.close();
+    if (wasRunning && !running) { loadApplied(); loadQuestions(); loadLinkedin(); }
+    if (running && s.lines.some(l => /->/.test(l))) loadApplied();
+    wasRunning = running;
+  } catch { $("#statusText").textContent = "Servidor desconectado"; $("#dot").classList.remove("on"); }
+}
+setInterval(poll, 1000);
+setInterval(() => { if (running && mode === "login") loadLinkedin(); }, 4000);
+
+/* ---------- histórico ---------- */
+let applied = [];
+async function loadApplied() {
+  const r = await api("/api/applied"); applied = r.rows;
+  $("#sHoje").textContent = r.stats.enviadas_hoje; $("#sTotal").textContent = r.stats.enviadas_total; $("#sPuladas").textContent = r.stats.puladas;
+  renderApplied();
+}
+function renderApplied() {
+  const q = $("#hSearch").value.toLowerCase(), st = $("#hStatus").value;
+  const rows = applied.filter(r => (!st || r.status.startsWith(st)) && (!q || (r.titulo + " " + r.empresa).toLowerCase().includes(q)));
+  $("#hBody").innerHTML = rows.length ? rows.map(r => {
+    const cls = r.status === "enviada" ? "enviada" : r.status === "pulada" ? "pulada" : "other";
+    return `<tr><td class="muted" style="white-space:nowrap">${esc(r.data.replace("T", " ").slice(0, 16))}</td>
+      <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.titulo || "(sem título)")}</a></td>
+      <td>${esc(r.empresa)}</td><td><span class="tag ${cls}">${esc(r.status)}</span></td><td class="muted">${esc(r.detalhe)}</td></tr>`;
+  }).join("") : `<tr><td colspan="5" class="empty">Nenhuma candidatura registrada ainda.</td></tr>`;
+}
+$("#hSearch").oninput = renderApplied; $("#hStatus").onchange = renderApplied;
+
+/* ---------- perguntas pendentes ---------- */
+async function loadQuestions() {
+  const { items } = await api("/api/unanswered");
+  $("#sPend").textContent = items.length;
+  $("#qBadge").hidden = !items.length; $("#qBadge").textContent = items.length;
+  $("#qList").innerHTML = items.length ? "" : `<div class="empty">Nenhuma pergunta pendente.</div>`;
+  items.forEach(it => {
+    const d = document.createElement("div"); d.className = "q";
+    d.innerHTML = `<div class="t">${esc(it.pergunta)} <span class="muted">· apareceu ${it.vezes}×</span></div>
+      <div class="row rule"><input type="text" value="${esc(it.pergunta.toLowerCase().replace(/[?*:]/g, "").trim())}" title="Palavra-chave">
+      <input type="text" placeholder="Sua resposta"><button class="btn primary">Salvar</button></div>`;
+    const [kw, ans] = d.querySelectorAll("input");
+    d.querySelector("button").onclick = async () => {
+      if (!kw.value.trim() || !ans.value.trim()) return toast("Preencha palavra-chave e resposta");
+      ruleRow({ match: list(kw.value.toLowerCase()), answer: ans.value.trim() });
+      await saveConfig("Regra adicionada");
+    };
+    ["input", "change"].forEach(ev => d.addEventListener(ev, e => e.stopPropagation()));  // não marca o formulário como alterado
+    $("#qList").append(d);
+  });
+}
+
+loadConfig().then(() => { loadLinkedin(); loadApplied(); loadQuestions(); poll(); });
+</script>
+</body>
+</html>

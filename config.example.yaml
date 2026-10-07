@@ -1,0 +1,58 @@
+# ===================== CONFIGURAÇÃO DO ROBÔ DE CANDIDATURAS =====================
+# Normalmente editado pela interface (interface.bat). Linhas com "#" são comentários.
+
+# Buscas a executar (pode ter várias). Só vagas com "Candidatura simplificada" (Easy Apply).
+searches:
+  - keywords: "Analista de Suporte"
+    location: "Brasil"
+
+# Filtros extras da busca
+filters:
+  posted_within_hours: 168     # 24 = último dia, 168 = última semana, 0 = sem filtro
+  remote: []                   # [] = qualquer; opções: presencial, remoto, hibrido
+  experience_levels: []        # [] = qualquer; opções: estagio, junior, assistente, pleno_senior, diretor, executivo
+  pages_per_search: 3          # cada página tem ~25 vagas
+
+# Pula vagas cujo título/empresa contenha alguma destas palavras (sem diferenciar maiúsculas)
+blacklist_title_words: []
+blacklist_companies: []
+
+# Limites e segurança
+max_applications_per_run: 20
+delay_between_applications_seconds: [10, 25]   # intervalo aleatório entre candidaturas
+dry_run: false            # true = percorre o formulário mas NÃO envia (bom para testar)
+confirm_before_submit: true   # true = pede confirmação antes de cada envio
+unfollow_company: true    # desmarca "Seguir empresa" antes de enviar
+
+# De onde vêm currículo e dados enviados nas vagas:
+#   local    = currículo e informações do "profile" abaixo (substitui o que o LinkedIn pré-preenche)
+#   linkedin = currículo e informações já salvos na sua conta do LinkedIn
+data_source: local
+
+# Currículo em PDF (enviado pela aba Meu perfil da interface)
+resume_path: ""
+
+# Suas informações (aba Meu perfil). Campos vazios são ignorados.
+profile:
+  full_name: ""
+  email: ""
+  phone: ""
+  city: ""
+  linkedin_url: ""
+  portfolio_url: ""
+  salary: ""
+  english_level: ""
+  availability: ""
+  years_experience: null     # anos de experiência usados em perguntas numéricas sem regra específica
+
+# Resposta padrão para perguntas Sim/Não sem regra específica. null = não chuta (pula a vaga).
+default_yes_no: null
+
+# Regras de resposta para perguntas específicas das vagas: se a pergunta contiver alguma palavra
+# de "match", usa "answer". A primeira regra que casar vence. Para Sim/Não use "Sim" ou "Não".
+# Ex.:
+#   - match: ["python"]
+#     answer: "3"
+#   - match: ["autorizado a trabalhar", "authorized to work"]
+#     answer: "Sim"
+answers: []

@@ -1,0 +1,13 @@
+# Ambiente Python
+.venv/
+__pycache__/
+
+# Dados pessoais — nunca versionar
+# sessão/cookies do LinkedIn
+profile/
+# currículo enviado
+resume/
+# dados do perfil e respostas (o modelo versionado é config.example.yaml)
+config.yaml
+applied.csv
+unanswered_questions.csv
