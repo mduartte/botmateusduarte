@@ -48,6 +48,20 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def clean_question(text: str) -> str:
+    """O LinkedIn repete o rótulo (texto visível + oculto p/ leitor de tela) e às vezes
+    acrescenta "Obrigatório"/"Required". Junta as linhas sem repetições nem esses avisos."""
+    seen, parts = set(), []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        key = norm(line)
+        if not key or key in seen or key in ("obrigatorio", "required", "*"):
+            continue
+        seen.add(key)
+        parts.append(line)
+    return " ".join(parts)
+
+
 def log(msg: str) -> None:
     print(f"[{datetime.now():%H:%M:%S}] {msg}", flush=True)
 
@@ -142,6 +156,8 @@ class Bot:
         self.applied_ids = load_applied_ids()
         self.sent = 0
         self.current_job = ""
+        self.position = (0, 0)  # (busca, página) em andamento
+        self.seen_ids: set[str] = set()  # vagas já vistas nesta execução (não repete ao retomar)
         # "local" = usa currículo e dados da aba Meu perfil; "linkedin" = usa o que já está salvo no LinkedIn
         self.use_local = cfg.get("data_source", "local") == "local"
 
@@ -171,8 +187,11 @@ class Bot:
     def run(self) -> None:
         self.ensure_logged_in()
         pages = int((self.cfg.get("filters") or {}).get("pages_per_search", 1))
-        for s in self.cfg["searches"]:
+        for si, s in enumerate(self.cfg["searches"]):
             for p in range(pages):
+                if (si, p) < self.position:  # retomada após o navegador ser reaberto
+                    continue
+                self.position = (si, p)
                 if self.limit_reached():
                     return
                 url = self.search_url(s["keywords"], s.get("location", ""), p * 25)
@@ -203,14 +222,17 @@ class Bot:
                 return False
             card = self.job_cards().nth(i)
             job_id = card.get_attribute("data-occludable-job-id") or ""
-            if not job_id or job_id in self.applied_ids:
+            if not job_id or job_id in self.applied_ids or job_id in self.seen_ids:
                 continue
+            self.seen_ids.add(job_id)
             try:
                 card.scroll_into_view_if_needed()
                 card.locator("a").first.click()
                 self.page.wait_for_timeout(1500)
                 self.handle_job(job_id)
             except (PWTimeout, PWError) as e:
+                if self.page.is_closed():
+                    raise  # navegador fechou: main() reabre e retoma
                 log(f"  Erro na vaga {job_id}: {str(e).splitlines()[0]}")
                 self.close_modal(discard=True)
         return True
@@ -337,10 +359,10 @@ class Bot:
         if el_id:
             lab = el.page.locator(f"label[for='{el_id}']")
             if lab.count():
-                return lab.first.inner_text().strip()
+                return clean_question(lab.first.inner_text())
         aria = el.get_attribute("aria-label")
         if aria:
-            return aria.strip()
+            return clean_question(aria)
         container = el.locator("xpath=ancestor::*[contains(@class,'form-element') or contains(@class,'grouping')][1]")
         if container.count():
             return container.first.inner_text().split("\n")[0].strip()
@@ -396,7 +418,7 @@ class Bot:
             if not radios.count() or fs.locator("input[type='radio']:checked").count():
                 continue
             legend = fs.locator("legend, span[data-test-form-builder-radio-button-form-component__title]").first
-            q = legend.inner_text().strip() if legend.count() else fs.inner_text().split("\n")[0]
+            q = clean_question(legend.inner_text() if legend.count() else fs.inner_text().split("\n")[0])
             labels = [fs.locator(f"label[for='{r.get_attribute('id')}']").first for r in radios.all()]
             texts = [l.inner_text().strip() for l in labels]
             choice = self.pick_option(self.answerer.yes_no(q), texts)
@@ -504,25 +526,43 @@ def main() -> None:
     cfg = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
     if args.dry_run:
         cfg["dry_run"] = True
+    bot = Bot(None, cfg)
+    reopens = 0
     with sync_playwright() as p:
-        ctx = p.chromium.launch_persistent_context(str(PROFILE_DIR), headless=False, viewport={"width": 1366, "height": 900},
-                                                   locale="pt-BR")
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        bot = Bot(page, cfg)
-        try:
-            if args.login:
-                bot.ensure_logged_in()
-                if GUI:
-                    log("Login salvo. Pode fechar.")
-                    page.wait_for_timeout(3000)
+        while True:
+            ctx = p.chromium.launch_persistent_context(str(PROFILE_DIR), headless=False,
+                                                       viewport={"width": 1366, "height": 900}, locale="pt-BR")
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            bot.page = page
+            try:
+                if args.login:
+                    bot.ensure_logged_in()
+                    if GUI:
+                        log("Login salvo. Pode fechar.")
+                        page.wait_for_timeout(3000)
+                    else:
+                        input("Logado. Pressione Enter para fechar...")
                 else:
-                    input("Logado. Pressione Enter para fechar...")
-            else:
-                bot.run()
-        except KeyboardInterrupt:
-            log("Interrompido pelo usuário.")
-        finally:
-            ctx.close()
+                    bot.run()
+                break
+            except KeyboardInterrupt:
+                log("Interrompido pelo usuário.")
+                break
+            except PWError as e:
+                # Navegador/aba fechou (fechado à mão, travou ou foi encerrado pelo sistema)
+                if args.login or not (page.is_closed() or "has been closed" in str(e)):
+                    raise
+                reopens += 1
+                if reopens > 2:
+                    log(f"Erro: o navegador do robô fechou {reopens} vezes. Encerrando. "
+                        f"Candidaturas enviadas nesta execução: {bot.sent}")
+                    break
+                log("Aviso: o navegador do robô fechou inesperadamente. Reabrindo e continuando de onde parou...")
+            finally:
+                try:
+                    ctx.close()
+                except PWError:
+                    pass
 
 
 if __name__ == "__main__":
