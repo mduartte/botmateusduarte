@@ -158,6 +158,7 @@ class Bot:
         self.current_job = ""
         self.position = (0, 0)  # (busca, página) em andamento
         self.seen_ids: set[str] = set()  # vagas já vistas nesta execução (não repete ao retomar)
+        self.left_blank: list[str] = []  # perguntas opcionais deixadas em branco na vaga atual
         # "local" = usa currículo e dados da aba Meu perfil; "linkedin" = usa o que já está salvo no LinkedIn
         self.use_local = cfg.get("data_source", "local") == "local"
 
@@ -210,24 +211,47 @@ class Bot:
     def job_cards(self) -> Locator:
         return self.page.locator("li[data-occludable-job-id]")
 
+    def load_all_cards(self) -> list[str]:
+        """A lista de vagas carrega aos poucos conforme rola: rola até o fim e devolve os ids."""
+        ids: list[str] = []
+        stable = 0
+        for _ in range(20):
+            found = self.job_cards().evaluate_all("els => els.map(e => e.getAttribute('data-occludable-job-id'))")
+            found = [i for i in dict.fromkeys(found) if i]
+            stable = stable + 1 if len(found) == len(ids) else 0
+            ids = found
+            if stable >= 2:
+                break
+            # rola o contêiner rolável da lista (ou a página) até o último cartão e um pouco além
+            self.job_cards().last.evaluate("""el => {
+                el.scrollIntoView({block: 'end'});
+                let p = el.parentElement;
+                while (p && !(p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY)))
+                    p = p.parentElement;
+                (p || document.scrollingElement).scrollBy(0, 1200);
+            }""")
+            self.page.wait_for_timeout(700)
+        self.job_cards().first.scroll_into_view_if_needed()
+        return ids
+
     def process_results_page(self) -> bool:
         try:
             self.job_cards().first.wait_for(timeout=15_000)
         except PWTimeout:
             log("Nenhuma vaga nesta página.")
             return False
-        count = self.job_cards().count()
-        for i in range(count):
+        ids = self.load_all_cards()
+        log(f"  {len(ids)} vagas na página")
+        for job_id in ids:
             if self.limit_reached():
                 return False
-            card = self.job_cards().nth(i)
-            job_id = card.get_attribute("data-occludable-job-id") or ""
-            if not job_id or job_id in self.applied_ids or job_id in self.seen_ids:
+            if job_id in self.applied_ids or job_id in self.seen_ids:
                 continue
             self.seen_ids.add(job_id)
             try:
+                card = self.page.locator(f"li[data-occludable-job-id='{job_id}']").first
                 card.scroll_into_view_if_needed()
-                card.locator("a").first.click()
+                card.locator("a").first.click(timeout=10_000)  # o conteúdo do cartão só renderiza visível
                 self.page.wait_for_timeout(1500)
                 self.handle_job(job_id)
             except (PWTimeout, PWError) as e:
@@ -282,6 +306,7 @@ class Bot:
     def fill_and_submit(self, modal: Locator) -> tuple[str, str]:
         last_progress = None
         stuck = 0
+        self.left_blank = []
         for _ in range(20):
             self.page.wait_for_timeout(800)
             unanswered = self.fill_step(modal)
@@ -333,6 +358,11 @@ class Bot:
                 if stuck >= 2:
                     msgs = [norm(e) for e in errors.all_inner_texts()][:3]
                     self.close_modal(discard=True)
+                    # Alguma pergunta tida como opcional era obrigatória: registra para o usuário responder
+                    blank = list(dict.fromkeys(self.left_blank))
+                    if blank:
+                        self.log_unanswered(blank)
+                        return "pulada", "perguntas sem resposta: " + " | ".join(blank)
                     return "pulada", "formulário com erro de validação " + "; ".join(msgs)
             else:
                 stuck = 0
@@ -368,7 +398,22 @@ class Bot:
             return container.first.inner_text().split("\n")[0].strip()
         return ""
 
+    @staticmethod
+    def is_required(*els: Locator, text: str = "") -> bool:
+        """Campo obrigatório: atributo required/aria-required ou aviso "Obrigatório" no rótulo."""
+        for el in els:
+            if el.get_attribute("required") is not None or el.get_attribute("aria-required") == "true":
+                return True
+        return any(norm(line) in ("obrigatorio", "required") for line in text.splitlines())
+
+    def label_raw(self, el: Locator) -> str:
+        el_id = el.get_attribute("id")
+        lab = el.page.locator(f"label[for='{el_id}']") if el_id else None
+        return lab.first.inner_text() if lab is not None and lab.count() else ""
+
     def fill_step(self, modal: Locator) -> list[str]:
+        """Preenche a etapa. Devolve as perguntas obrigatórias sem resposta; as opcionais sem
+        resposta ficam em branco e vão para self.left_blank."""
         unanswered: list[str] = []
         self.choose_resume(modal)
 
@@ -389,8 +434,10 @@ class Bot:
                           or bool(re.search(r"quantos anos|how many years|anos de experiencia|years of experience", norm(q))))
             ans = self.answerer.numeric(q) if is_numeric else self.answerer.for_question(q)
             if ans is None:
-                if el.get_attribute("required") is not None or el.get_attribute("aria-required") == "true":
+                if self.is_required(el, text=self.label_raw(el)):
                     unanswered.append(q or "(campo de texto sem rótulo)")
+                else:
+                    self.left_blank.append(q or "(campo de texto sem rótulo)")
                 continue
             el.fill(ans)
             self.pick_autocomplete(el)
@@ -408,7 +455,10 @@ class Bot:
                 continue
             choice = self.pick_option(self.answerer.yes_no(q), options)
             if choice is None:
-                unanswered.append(q or "(lista sem rótulo)")
+                if self.is_required(sel, text=self.label_raw(sel)):
+                    unanswered.append(q or "(lista sem rótulo)")
+                else:
+                    self.left_blank.append(q or "(lista sem rótulo)")
                 continue
             sel.select_option(label=choice)
 
@@ -423,7 +473,10 @@ class Bot:
             texts = [l.inner_text().strip() for l in labels]
             choice = self.pick_option(self.answerer.yes_no(q), texts)
             if choice is None:
-                unanswered.append(q)
+                if self.is_required(fs, *radios.all(), text=legend.inner_text() if legend.count() else ""):
+                    unanswered.append(q)
+                else:
+                    self.left_blank.append(q)
                 continue
             labels[texts.index(choice)].click()
 

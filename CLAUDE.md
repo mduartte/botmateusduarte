@@ -17,7 +17,11 @@ com interface web local. Windows, Python 3.12, Playwright (Chromium), Flask. UI 
   formulário); `Answerer` decide respostas. Ordem de prioridade: regras `answers` do config →
   campos do `profile` (`PROFILE_FIELDS`) → `default_yes_no` / `years_experience`.
   Se uma pergunta obrigatória não tem resposta, a vaga é **pulada** e a pergunta vai para
-  `unanswered_questions.csv` — o robô nunca inventa respostas.
+  `unanswered_questions.csv` — o robô nunca inventa respostas. Perguntas opcionais sem resposta
+  ficam em branco (`left_blank`); se o LinkedIn recusar por validação, também vão para o CSV.
+  Obrigatória = `required`/`aria-required` ou "Obrigatório"/"Required" no rótulo (`is_required`).
+- A lista de vagas carrega aos poucos: `load_all_cards` rola o contêiner até o fim antes de iterar.
+  Se o navegador fecha, `main()` reabre (até 2x) e retoma da mesma busca/página (`Bot.position`).
 - `app.py` — Flask. `Runner` executa `autoapply.py` como subprocesso (`AUTOAPPLY_GUI=1`) e lê o stdout.
   Protocolo de confirmação: o robô imprime `@@CONFIRM@@{json}` e lê `s`/`n`/`q` do stdin.
   Login detectado lendo o cookie `li_at` no SQLite de cookies em `profile/` (copiado antes, pois fica travado).
