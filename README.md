@@ -10,8 +10,8 @@ Funciona no **Windows**.
 1. **Instale o Python** (3.12 ou mais novo): https://www.python.org/downloads/
    Na primeira tela do instalador, **marque "Add python.exe to PATH"** antes de clicar em *Install Now*.
 2. **Baixe este projeto**: no GitHub, clique no botão verde **Code → Download ZIP** e
-   extraia a pasta num caminho curto, por exemplo `C:\botmateusduarte` (caminhos muito
-   longos fazem a instalação falhar no Windows).
+   extraia direto em `C:\` (fica `C:\botmateusduarte-main`). Caminhos muito longos fazem a
+   instalação falhar no Windows. Página com o passo a passo: https://mduartte.github.io/botmateusduarte/
    Quem usa git pode clonar: `git clone https://github.com/mduartte/botmateusduarte.git`
 3. Dentro da pasta, dê dois cliques em **`setup.bat`** e espere terminar (alguns minutos).
 
@@ -41,7 +41,7 @@ Também dá para rodar sem interface: `run.bat` (usa o `config.yaml`).
 ## Problemas comuns
 - **"Python não encontrado" no setup**: reinstale o Python marcando *Add python.exe to PATH*.
 - **Erro "nome do arquivo ou extensão é muito grande" no setup**: mova a pasta para um caminho
-  curto (ex.: `C:\botmateusduarte`) e rode o `setup.bat` de novo.
+  curto (ex.: `C:\botmateusduarte-main`) e rode o `setup.bat` de novo.
 - **A interface não abre**: confira se a janela preta do `interface.bat` continua aberta e acesse
   http://127.0.0.1:5000 no navegador.
 - **Parou de achar botões/vagas**: o LinkedIn mudou o site; baixe a versão mais nova deste projeto.

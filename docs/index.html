@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>botmateusduarte</title>
+<meta name="description" content="Robô gratuito que se candidata por você às vagas com Candidatura simplificada do LinkedIn. Roda no seu computador, com a sua conta.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a66c2'/%3E%3Cpath d='M9 17l4.5 4.5L23 11' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5; --border: #e2e5ea;
+    --text: #1b1f24; --muted: #646d78; --accent: #0a66c2; --accent-ink: #ffffff; --accent-soft: #e8f1fb;
+    --ok: #1f8a4c; --warn: #b26a00; --warn-soft: #fff4e2;
+    --log-bg: #11151a; --log-text: #d7dde4;
+    --radius: 12px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --surface: #171b21; --surface-2: #1e232b; --border: #2a313b;
+      --text: #e6e9ee; --muted: #9aa4b1; --accent: #4c9be8; --accent-ink: #0b1220; --accent-soft: #16263a;
+      --ok: #3cc47c; --warn: #e3a33b; --warn-soft: #2a2114; --log-bg: #0a0d11; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  code, kbd { font: .9em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+
+  /* topo */
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+  .logo svg { width: 18px; height: 18px; }
+  nav .links { display: flex; gap: 20px; font-size: 15px; }
+  nav .links a { color: var(--muted); text-decoration: none; }
+  nav .links a:hover { color: var(--text); }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding: 48px 0 72px; }
+  .pill { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); border-radius: 999px; padding: 4px 12px; }
+  h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.12; letter-spacing: -.02em; margin: 16px 0; text-wrap: balance; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 52ch; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; text-decoration: none;
+    border-radius: 10px; padding: 12px 20px; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost { color: var(--text); border-color: var(--border); background: var(--surface); }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .btn svg { width: 18px; height: 18px; }
+  .fine { font-size: 13px; color: var(--muted); margin-top: 12px; }
+
+  /* janela de log ilustrativa */
+  .window { background: var(--log-bg); border-radius: var(--radius); box-shadow: 0 20px 50px rgba(16,24,40,.18);
+    overflow: hidden; border: 1px solid var(--border); }
+  .window .bar { display: flex; gap: 6px; padding: 12px 14px; background: rgba(255,255,255,.04); }
+  .window .bar i { width: 10px; height: 10px; border-radius: 50%; background: #3a414b; }
+  .window .bar span { margin-left: 8px; font-size: 12px; color: #8b95a1; }
+  .log { margin: 0; padding: 14px 16px 18px; font: 13px/1.75 ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: var(--log-text); white-space: pre-wrap; word-break: break-word; }
+  .log .t { color: #6f7a87; } .log .job { color: #7cb7f5; } .log .ok { color: #4fd18b; } .log .skip { color: #e3b35b; }
+
+  section { padding: 64px 0; }
+  section + section { border-top: 1px solid var(--border); }
+  h2 { font-size: 28px; letter-spacing: -.01em; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 32px; max-width: 60ch; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;
+    box-shadow: var(--shadow); }
+  .card h3 { font-size: 17px; margin: 12px 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; }
+  .icon svg { width: 20px; height: 20px; }
+
+  /* privacidade */
+  .privacy { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .privacy ul { margin: 0; padding: 0; list-style: none; }
+  .privacy li { position: relative; padding: 8px 0 8px 30px; color: var(--text); font-size: 15px; }
+  .privacy li svg { position: absolute; left: 0; top: 11px; width: 20px; height: 20px; }
+  .yes svg { color: var(--ok); } .no svg { color: var(--muted); }
+
+  /* passos */
+  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 14px; }
+  ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  ol.steps > li::before { content: counter(s); width: 36px; height: 36px; border-radius: 50%; background: var(--accent);
+    color: var(--accent-ink); font-weight: 700; display: grid; place-items: center; }
+  ol.steps h3 { margin: 4px 0 4px; font-size: 17px; }
+  ol.steps p { margin: 0; color: var(--muted); font-size: 15px; }
+  ol.steps p + p { margin-top: 6px; }
+
+  /* FAQ */
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0 20px; }
+  details + details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; padding: 16px 0; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details p { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
+
+  .warn { display: flex; gap: 14px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+    border-radius: var(--radius); padding: 18px 20px; margin-top: 28px; }
+  .warn svg { flex: none; width: 22px; height: 22px; color: var(--warn); margin-top: 2px; }
+  .warn p { margin: 0; font-size: 15px; }
+
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 24px; }
+    .grid3, .privacy { grid-template-columns: 1fr; }
+    nav .links { display: none; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 16px; }
+    .cta .btn { width: 100%; justify-content: center; }
+    ol.steps > li { grid-template-columns: 1fr; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <nav>
+    <a class="brand" href="#">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      botmateusduarte
+    </a>
+    <div class="links">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#privacidade">Privacidade</a>
+      <a href="#instalar">Instalar</a>
+      <a href="#duvidas">Dúvidas</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <span class="pill">Gratuito · Windows · Código aberto</span>
+        <h1>Candidate-se a vagas do LinkedIn no automático.</h1>
+        <p class="lead">Um robô que procura vagas com <strong>Candidatura simplificada</strong>, preenche os formulários com
+          os seus dados e envia por você. Ele roda no seu computador, com a sua própria conta do LinkedIn.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/mduartte/botmateusduarte/archive/refs/heads/main.zip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+            Baixar para Windows
+          </a>
+          <a class="btn btn-ghost" href="#instalar">Como instalar</a>
+        </div>
+        <p class="fine">Requer Windows 10/11 e Python 3.12+. Instalação em ~5 minutos.</p>
+      </div>
+      <div class="window" aria-label="Exemplo do registro do robô">
+        <div class="bar"><i></i><i></i><i></i><span>Painel · registro</span></div>
+<pre class="log"><span class="t">[09:12:01]</span> Sessão do LinkedIn ativa.
+<span class="t">[09:12:02]</span> <span class="job">Busca: 'Analista de Suporte' em 'Brasil' — página 1</span>
+<span class="t">[09:12:09]</span>   25 vagas na página
+<span class="t">[09:12:14]</span> <span class="job">Vaga: Analista de Service Desk @ Empresa A</span>
+<span class="t">[09:12:21]</span>   <span class="ok">-&gt; enviada</span>
+<span class="t">[09:12:44]</span> <span class="job">Vaga: Analista de Infraestrutura @ Empresa B</span>
+<span class="t">[09:12:52]</span>   <span class="skip">-&gt; pulada: perguntas sem resposta: Pretensão salarial PJ?</span>
+<span class="t">[09:13:10]</span> <span class="job">Vaga: Suporte Técnico N2 @ Empresa C</span>
+<span class="t">[09:13:18]</span>   <span class="ok">-&gt; enviada</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <section id="como-funciona">
+    <div class="wrap">
+      <h2>Como funciona</h2>
+      <p class="sub">Você configura uma vez pela interface no navegador e o robô faz o trabalho repetitivo.</p>
+      <div class="grid3">
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></div>
+          <h3>Busca as vagas</h3>
+          <p>Você escolhe cargos, local, modelo (remoto, híbrido, presencial) e nível. Ele percorre os resultados.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></svg></div>
+          <h3>Preenche os formulários</h3>
+          <p>Usa seu currículo e as respostas que você cadastrou. Perguntas opcionais sem resposta ficam em branco.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.4 5 5.4.6-4 3.7 1.1 5.4-4.9-2.8-4.9 2.8 1.1-5.4-4-3.7 5.4-.6z"/></svg></div>
+          <h3>Nunca inventa respostas</h3>
+          <p>Se uma pergunta obrigatória não tem resposta, a vaga é pulada e a pergunta aparece para você responder depois.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacidade">
+    <div class="wrap">
+      <h2>Sua conta, seus dados, seu computador</h2>
+      <p class="sub">O robô não tem servidor. Quem baixa usa a própria conta do LinkedIn — ninguém compartilha login com ninguém.</p>
+      <div class="privacy">
+        <div class="card">
+          <ul class="yes">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              Você faz login com a <strong>sua</strong> conta, numa janela do navegador no seu PC.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              A sessão, o currículo e as respostas ficam só na pasta do robô no seu computador.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              As candidaturas saem com o seu perfil e o seu currículo.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <ul class="no">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>
+              Sua senha não é guardada pelo robô.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>
+              Nenhum dado é enviado para servidores do robô — eles não existem.</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>
+              O download não vem com conta de ninguém: começa sem login.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="instalar">
+    <div class="wrap">
+      <h2>Instalação</h2>
+      <p class="sub">Só na primeira vez. Depois é só abrir o <code>interface.bat</code>.</p>
+      <ol class="steps">
+        <li><div>
+          <h3>Instale o Python</h3>
+          <p>Baixe o Python 3.12 ou mais novo em <a href="https://www.python.org/downloads/">python.org/downloads</a>.</p>
+          <p>Na primeira tela do instalador, <strong>marque “Add python.exe to PATH”</strong> antes de clicar em <em>Install Now</em>.</p>
+        </div></li>
+        <li><div>
+          <h3>Baixe e extraia o robô</h3>
+          <p><a href="https://github.com/mduartte/botmateusduarte/archive/refs/heads/main.zip">Baixe o ZIP</a> e extraia direto em
+            <code>C:\</code> (fica <code>C:\botmateusduarte-main</code>).</p>
+          <p>Pastas com caminho muito longo fazem a instalação falhar no Windows.</p>
+        </div></li>
+        <li><div>
+          <h3>Rode o <code>setup.bat</code></h3>
+          <p>Dê dois cliques nele dentro da pasta e espere terminar. Ele baixa as bibliotecas e o navegador do robô (alguns minutos).</p>
+          <p>Se o Windows mostrar “O Windows protegeu o computador”, clique em <em>Mais informações → Executar assim mesmo</em>.</p>
+        </div></li>
+        <li><div>
+          <h3>Abra a interface e conecte seu LinkedIn</h3>
+          <p>Dê dois cliques em <code>interface.bat</code>: abre uma janela preta (deixe aberta) e o painel no navegador.</p>
+          <p>Em <strong>Meu perfil</strong>, clique em <em>Conectar ao LinkedIn</em>, faça login e preencha seus dados e currículo.</p>
+        </div></li>
+        <li><div>
+          <h3>Teste antes de enviar</h3>
+          <p>Em <strong>Vagas</strong>, cadastre suas buscas. No <strong>Painel</strong>, use <em>Testar (simulação)</em> — ele percorre os
+            formulários sem enviar nada. Quando estiver tudo certo, clique em <em>Iniciar envios</em>.</p>
+        </div></li>
+      </ol>
+      <div class="warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>
+        <p><strong>Use com moderação.</strong> Automatizar o LinkedIn vai contra os Termos de Uso dele e pode levar a restrição ou
+          bloqueio da conta. Mantenha limites baixos de candidaturas por dia. Confira suas respostas: elas são enviadas às empresas como verdadeiras.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="duvidas">
+    <div class="wrap">
+      <h2>Dúvidas</h2>
+      <p class="sub">Problemas comuns e como resolver.</p>
+      <details>
+        <summary>Funciona no Mac ou no celular?</summary>
+        <p>Não. Por enquanto é só para Windows 10/11, num computador.</p>
+      </details>
+      <details>
+        <summary>Por que não é um site em que eu só entro e uso?</summary>
+        <p>Porque aí todo mundo teria que entregar o login do LinkedIn para um servidor de terceiros. Rodando no seu computador,
+          sua conta fica só com você.</p>
+      </details>
+      <details>
+        <summary>Ele se candidata a qualquer vaga?</summary>
+        <p>Só às que têm “Candidatura simplificada” (Easy Apply). Vagas que levam para o site da empresa são puladas.</p>
+      </details>
+      <details>
+        <summary>Por que tantas vagas são puladas?</summary>
+        <p>Muitas vagas fazem perguntas obrigatórias (pretensão salarial, anos de experiência…). Responda-as na aba
+          <strong>Respostas</strong> e o robô passa a usá-las nas próximas vagas.</p>
+      </details>
+      <details>
+        <summary>Aparece “Python não encontrado” no setup</summary>
+        <p>Reinstale o Python marcando “Add python.exe to PATH” e rode o <code>setup.bat</code> de novo.</p>
+      </details>
+      <details>
+        <summary>Erro “nome do arquivo ou a extensão é muito grande”</summary>
+        <p>Mova a pasta do robô para um caminho curto, como <code>C:\botmateusduarte-main</code>, e rode o <code>setup.bat</code> de novo.</p>
+      </details>
+      <details>
+        <summary>Parou de encontrar botões ou vagas</summary>
+        <p>O LinkedIn muda o site com frequência. Baixe a versão mais nova por esta página e substitua os arquivos
+          (mantenha as pastas <code>profile</code> e <code>resume</code> e o <code>config.yaml</code> para não perder seus dados).</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>botmateusduarte · por Mateus Duarte</span>
+    <span>Projeto independente, sem vínculo com o LinkedIn. · <a href="https://github.com/mduartte/botmateusduarte">Código no GitHub</a></span>
+  </div>
+</footer>
+
+</body>
+</html>
