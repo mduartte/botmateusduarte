@@ -1,0 +1,2 @@
+# .bat precisa de CRLF no Windows (inclusive no ZIP do GitHub); nao converter
+*.bat -text
